@@ -1,0 +1,95 @@
+# PanoLess: Environment Reconstruction from Partial Reflective Views
+
+**Paper (ECCV 2026)** | Rice University
+
+> Ahitagni Das, Ashok Veeraraghavan, Vivek Boominathan
+
+![teaser](docs/static/Teaser.svg)
+
+PanoLess reconstructs the surrounding environment from images captured on only one side of a reflective surface — no panoramic capture required. It combines surface-aligned 2D Gaussian splats with a jointly optimized neural cubemap and an explicit visibility map that distinguishes well-observed environment directions from unsupported ones.
+
+## Method
+
+![methodology](docs/static/Methodology.svg)
+
+## Ablations
+
+Reproduce the ablation study from Table 2 (Vase scene):
+
+```bash
+bash scripts/run_ablations.sh <scene_path>
+```
+
+Individual flags:
+
+| Flag | Ablation |
+|---|---|
+| `--rho_weighted_env` | Scale cubemap by (1−ρ)² instead of using it directly |
+| `--no_alpha_loss` | Remove early silhouette supervision Lα |
+| `--no_normal_loss` | Remove normal consistency loss Ln |
+
+## Setup
+
+```bash
+conda create -n panoless python=3.10
+conda activate panoless
+bash scripts/install.sh
+```
+
+`scripts/install.sh` auto-detects your CUDA version, installs the matching PyTorch build, installs all Python dependencies, and builds the CUDA submodules (`diff-surfel-rasterization`, `simple-knn`, `cubemapencoder`).
+
+## Dataset
+
+We evaluate on:
+
+- **Shiny Partial** (ours) — Blender renders from a single hemisphere with ground-truth environment maps; three scenes: Cola, Vase, Mirror (100 train / 200 test images each).
+- **Partial Shiny Blender** — single-hemisphere subset of [Ref-NeRF's Shiny Blender](https://storage.googleapis.com/gresearch/refraw360/ref.zip).
+- **Shiny Real** — handheld video captures processed with COLMAP.
+
+## Training
+
+```bash
+python train.py -s <scene_path> --model_path <output_path> --eval
+```
+
+Key flags:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--iterations` | 45000 | Total training iterations |
+| `--env_start_iter` | 3000 | Iteration to activate the environment map |
+| `--pose_jitter_deg` | 0.0 | Std dev (degrees) of rotation noise applied to train cameras |
+| `--pose_jitter_seed` | 42 | RNG seed for pose jitter |
+
+## Environment Map Evaluation
+
+```bash
+python scripts/eval_envmaps.py             # compare methods on Shiny Partial
+python scripts/eval_envmaps.py --ablation  # ablation variants vs. ground truth
+```
+
+Ground-truth environment PNGs live in `envs/`. Method outputs go in `local/data/` (gitignored).
+
+## Citation
+
+```bibtex
+@inproceedings{das2026panoless,
+  title     = {PanoLess: Environment Reconstruction from Partial Reflective Views},
+  author    = {Das, Ahitagni and Veeraraghavan, Ashok and Boominathan, Vivek},
+  booktitle = {ECCV},
+  year      = {2026}
+}
+```
+
+## Acknowledgments
+
+PanoLess builds on:
+
+- [2D Gaussian Splatting](https://surfsplatting.github.io/) — surface-aligned primitives and normal extraction
+- [3DGS-DR](https://github.com/gapszju/3DGS-DR) — deferred reflection rendering and cubemap encoder
+- [Ref-GS (CVPR 2025)](https://arxiv.org/abs/2412.00905) — 2DGS with deferred shading for specular surfaces
+- [diff-surfel-rasterization](https://github.com/hbb1/diff-surfel-rasterization) — 2DGS CUDA rasterizer
+
+## Contact
+
+Ahitagni Das — [ad158@rice.edu](mailto:ad158@rice.edu)
