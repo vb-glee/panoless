@@ -37,4 +37,5 @@ dist/
 *.tmp
 *.temp
 .DS_Store
-Thumbs.dbenvs/
+Thumbs.db
+envs/
