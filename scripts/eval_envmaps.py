@@ -107,13 +107,25 @@ def main_ablation():
     print(f"Saved {out_path}")
 
 
+def main_quick(gt_path, pred_path):
+    print(f"PSNR:  {get_psnr(gt_path, pred_path):.4f}")
+    print(f"SSIM:  {get_ssim(gt_path, pred_path):.4f}")
+    print(f"LPIPS: {get_lpips(gt_path, pred_path):.4f}")
+    print(f"L1:    {get_l1(gt_path, pred_path):.6f}")
+
+
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--ablation", action="store_true")
     p.add_argument("--full", action="store_true")
+    p.add_argument("--gt",   type=str, default=None)
+    p.add_argument("--pred", type=str, default=None)
     args = p.parse_args()
-    if args.full or not args.ablation:
-        main()
-    if args.ablation or not args.full:
-        main_ablation()
+    if args.gt and args.pred:
+        main_quick(args.gt, args.pred)
+    else:
+        if args.full or not args.ablation:
+            main()
+        if args.ablation or not args.full:
+            main_ablation()
