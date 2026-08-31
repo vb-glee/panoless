@@ -1,6 +1,6 @@
 # PanoLess: Environment Reconstruction from Partial Reflective Views
 
-**Paper (ECCV 2026)** | Rice University
+**[Paper (ECCV 2026)](https://arxiv.org/abs/2607.25362)** | Rice University
 
 > Ahitagni Das, Ashok Veeraraghavan, Vivek Boominathan
 
