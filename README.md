@@ -17,8 +17,10 @@ PanoLess reconstructs the surrounding environment from images captured on only o
 Reproduce the ablation study from Table 2 (Vase scene):
 
 ```bash
-bash scripts/run_ablations.sh <scene_path>
+bash scripts/run_ablations.sh -s <scene_path> [-o <output_base>]
 ```
+
+Results are written to `output/ablations/<scene_name>/` unless `-o` is given.
 
 Individual flags:
 
@@ -31,12 +33,16 @@ Individual flags:
 ## Setup
 
 ```bash
+git clone --recursive https://github.com/vb-glee/panoless
+cd panoless
 conda create -n panoless python=3.10
 conda activate panoless
 bash scripts/install.sh
 ```
 
-`scripts/install.sh` auto-detects your CUDA version, installs the matching PyTorch build, installs all Python dependencies, and builds the CUDA submodules (`diff-surfel-rasterization`, `simple-knn`, `cubemapencoder`).
+`scripts/install.sh` installs a CUDA 12.4 PyTorch build, installs all Python dependencies, and builds the CUDA submodules (`diff-surfel-rasterization`, `simple-knn`, `cubemapencoder`). It expects `CUDA_HOME=/usr/local/cuda` and GCC 12; edit the exports at the top of the script for other toolchains.
+
+If you already cloned without `--recursive`, run `git submodule update --init --recursive`.
 
 ## Dataset
 
@@ -64,11 +70,12 @@ Key flags:
 ## Environment Map Evaluation
 
 ```bash
-python scripts/eval_envmaps.py             # compare methods on Shiny Partial
+python scripts/eval_envmaps.py --full      # compare methods on Shiny Partial
 python scripts/eval_envmaps.py --ablation  # ablation variants vs. ground truth
+python scripts/eval_envmaps.py             # both of the above
 ```
 
-Ground-truth environment PNGs live in `envs/`. Method outputs go in `local/data/` (gitignored).
+Ground-truth environment PNGs are read from `envs/` (`<scene>.png` for `vase`, `cola`, `mirror`). This directory is not tracked in git, so place the maps there yourself. Method outputs are read from `local/data/<method>/` and ablation outputs from `local/ablation/`; both are gitignored. Results are written to `local/comparison.json` and `local/ablations.json`.
 
 ## Citation
 
