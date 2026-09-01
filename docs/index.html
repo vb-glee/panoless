@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PanoLess: Environment Reconstruction from Partial Reflective Views, ECCV 2026">
+  <meta name="author" content="Ahitagni Das, Ashok Veeraraghavan, Vivek Boominathan">
+
+  <title>PanoLess: Environment Reconstruction from Partial Reflective Views</title>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+        crossorigin="anonymous">
+  <link href="offcanvas.css" rel="stylesheet">
+
+  <script>
+    MathJax = {
+      tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+
+<body>
+
+<div class="jumbotron jumbotron-fluid">
+  <div class="container"></div>
+  <h2>PanoLess: Environment Reconstruction<br>from Partial Reflective Views</h2>
+  <h3>ECCV 2026</h3>
+  <hr>
+  <p class="authors">
+    <a href="https://scholar.google.com/citations?user=GLTc7LcAAAAJ&hl=en">Ahitagni Das</a><sup>1</sup>,&nbsp;
+    <a href="https://scholar.google.com/citations?user=tI-oUmsAAAAJ&hl=en">Ashok Veeraraghavan</a><sup>1</sup>,&nbsp;
+    <a href="https://vivekboominathan.com/">Vivek Boominathan</a><sup>1</sup>
+  </p>
+  <p><sup>1</sup> Rice University</p>
+  <div class="btn-group" role="group" aria-label="Top menu">
+    <a class="btn btn-primary" href="https://arxiv.org/abs/2607.25362">Paper</a>
+    <a class="btn btn-primary" href="https://github.com/vb-glee/panoless">Code</a>
+    <a class="btn btn-primary" href="https://drive.google.com/drive/folders/1YBVAv5UO2moO691udmFafXf7titgpcy4?usp=sharing">Data</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Teaser -->
+  <div class="section">
+    <div class="row">
+      <div class="col justify-content-center text-center">
+        <img src="static/teaser.webp" style="width:70%; display:block; margin:0 auto;" class="img-fluid" alt="PanoLess teaser">
+      </div>
+    </div>
+    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
+      Given multi-view images of a reflective object captured from a single hemisphere, PanoLess
+      recovers the surrounding environment map along with a visibility map that marks which
+      directions are constrained by the observed reflections.
+    </p>
+    <hr>
+  </div>
+
+  <!-- Abstract -->
+  <div class="section">
+    <h2>Abstract</h2>
+    <hr>
+    <p>
+      Reflections from shiny objects and glass façades naturally extend the field of view of a camera,
+      capturing the surrounding environment without the need to pan the camera or acquire a full panorama.
+      We propose <b>PanoLess</b>, a Gaussian-splat-based framework that reconstructs the environment from
+      images captured on only one side of a reflective surface. PanoLess leverages surface-aligned 2D
+      Gaussian splats with deferred shading to recover accurate per-pixel normals and reflection cues,
+      which are fused into a neural cubemap representation of the environment. In addition, PanoLess
+      produces a <i>visibility map</i> that explicitly denotes which regions of the environment are
+      supported by the partial reflective observations. Unlike existing inverse-rendering and
+      reflection-aware Gaussian-splatting approaches — which typically require full 360° coverage and
+      struggle under incomplete views — PanoLess enables consistent, physically grounded illumination
+      estimation from partial-view input. We show that PanoLess achieves high-fidelity and geometrically
+      consistent environment reconstruction, outperforming reflection-aware baselines on a new custom
+      synthetic benchmark and publicly available datasets, and demonstrating generalization to real-world
+      reflective captures.
+    </p>
+  </div>
+
+  <!-- Method -->
+  <div class="section">
+    <h2>Method</h2>
+    <hr>
+    <p>
+      PanoLess represents the scene as a set of surface-aligned 2D Gaussian splats, which are
+      rasterized into geometry and albedo buffers via differentiable alpha compositing. Each pixel's
+      specular reflection direction is computed from the rasterized normals and used to index a
+      learnable neural cubemap, whose response is added directly to the diffuse albedo to form the
+      final render. A visibility accumulation pass during training records which cubemap directions
+      receive gradient signal, producing the per-direction visibility map as a byproduct.
+    </p>
+
+    <div class="row align-items-center">
+      <div class="col justify-content-center text-center">
+        <img src="static/methodology.webp" style="width:100%" class="img-fluid"
+             alt="PanoLess pipeline">
+      </div>
+    </div>
+    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
+      <b>Pipeline.</b> 2D Gaussians are rasterized into normal, albedo, depth, and alpha buffers.
+      Reflection directions \(\boldsymbol{\omega}_r = \mathbf{v} - 2(\mathbf{v}\cdot\mathbf{n})\mathbf{n}\)
+      query the neural cubemap \(\mathbf{E}\). The final color
+      \(\mathbf{C} = \mathbf{A} + \mathbf{E}(\boldsymbol{\omega}_r)\) is supervised by the joint
+      loss \(\mathcal{L} = \mathcal{L}_i + \mathcal{L}_n + \mathcal{L}_\alpha\).
+    </p>
+
+    <p class="vspace-top">
+      Because reflection-direction error scales linearly with normal error,
+      \(\|\delta\boldsymbol{\omega}_r\| \le 4\|\delta\mathbf{n}\|\), accurate surface geometry is
+      the single most important factor for environment recovery. This motivates the normal
+      consistency loss \(\mathcal{L}_n\) as a core training objective.
+    </p>
+  </div>
+
+  <!-- Results: Shiny Partial -->
+  <div class="section">
+    <h2>Results: Shiny Partial Benchmark</h2>
+    <hr>
+    <p>
+      We introduce <b>Shiny Partial</b>, a new benchmark for partial-view environment reconstruction
+      with three scenes covering distinct reflector geometries: Cola (highly curved), Vase
+      (moderately curved), and Mirror (planar). Each scene is captured from a single hemisphere of
+      viewpoints, with ground-truth HDR environment maps provided for evaluation. PanoLess achieves
+      roughly 5 dB higher environment-map PSNR than the best competing baseline across all three
+      scenes.
+    </p>
+    <div class="row align-items-center">
+      <div class="col justify-content-center text-center">
+        <img src="static/shinypartial-env.webp" style="width:100%" class="img-fluid"
+             alt="Environment map comparisons on Shiny Partial">
+      </div>
+    </div>
+    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
+      Recovered environment maps on Shiny Partial (Cola, Vase, Mirror). PanoLess reconstructs
+      recognizable room structure, light sources, and color gradients. Baselines produce
+      washed-out or incoherent results regardless of reflector curvature.
+    </p>
+
+    <br>
+    <table class="table" style="text-align:center; font-size:14px">
+      <thead>
+        <tr>
+          <th rowspan="2">Method</th>
+          <th colspan="4">Environment Map</th>
+          <th colspan="3">Novel-View Render</th>
+        </tr>
+        <tr>
+          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
+          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GaussianShader</td>
+          <td>12.14</td><td>0.458</td><td>0.543</td><td>0.198</td>
+          <td>25.32</td><td>0.877</td><td>0.141</td>
+        </tr>
+        <tr>
+          <td>GS-IR</td>
+          <td>11.09</td><td>0.419</td><td>0.571</td><td>0.219</td>
+          <td>26.14</td><td>0.882</td><td>0.136</td>
+        </tr>
+        <tr>
+          <td>Ref-Gaussian</td>
+          <td>10.77</td><td>0.384</td><td>0.587</td><td>0.235</td>
+          <td>25.91</td><td>0.864</td><td>0.152</td>
+        </tr>
+        <tr>
+          <td><b>PanoLess (Ours)</b></td>
+          <td><b>17.54</b></td><td><b>0.601</b></td><td><b>0.474</b></td><td><b>0.098</b></td>
+          <td><b>35.42</b></td><td><b>0.978</b></td><td><b>0.031</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Results: Shiny Real -->
+  <div class="section">
+    <h2>Results: Real-World Captures</h2>
+    <hr>
+    <p>
+      We capture two scenes in the wild: a chrome sculpture and a convex safety mirror, each filmed
+      handheld from a single side. Camera poses come from COLMAP and no fine-tuning or domain
+      adaptation is applied.
+    </p>
+    <div class="row justify-content-center">
+      <div class="col-sm-8 text-center">
+        <img src="static/shinyreal.webp" style="width:100%" class="img-fluid"
+             alt="Real-world environment reconstruction">
+      </div>
+    </div>
+    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
+      PanoLess recovers recognizable illumination structure — sky gradients, nearby buildings,
+      overhead lights — from partial-view handheld footage without any synthetic supervision.
+    </p>
+  </div>
+
+  <!-- Generalization: Shiny Blender -->
+  <div class="section">
+    <h2>Generalization: Partial Shiny Blender</h2>
+    <hr>
+    <p>
+      We test generalization on Partial Shiny Blender, single-hemisphere subsets of the Shiny
+      Blender dataset (Car, Teapot, Coffee, Helmet, Toaster). These scenes have mixed diffuse and
+      specular materials, outside PanoLess's primary design assumptions, making them a meaningful
+      test of how far the approach transfers.
+    </p>
+    <div class="row align-items-center">
+      <div class="col-sm-6 justify-content-center text-center">
+        <img src="static/shinyblender-env.webp" style="width:100%" class="img-fluid"
+             alt="Shiny Blender environment maps">
+        <p style="font-size:14px; margin-top:8px">Recovered environment maps.</p>
+      </div>
+      <div class="col-sm-6 justify-content-center text-center">
+        <img src="static/shinyblender-renders.webp" style="width:100%" class="img-fluid"
+             alt="Shiny Blender novel-view renders">
+        <p style="font-size:14px; margin-top:8px">Novel-view renders.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ablation -->
+  <div class="section">
+    <h2>Ablation Study</h2>
+    <hr>
+    <p>
+      We ablate on the Vase scene. The normal consistency loss \(\mathcal{L}_n\) has by far the
+      largest impact: removing it drops envmap PSNR from 18.51 to 8.68 dB and collapses SSIM to
+      0.098. Roughness-attenuating the cubemap lookup costs 4.6 dB, and removing the silhouette
+      loss \(\mathcal{L}_\alpha\) costs 5.6 dB.
+    </p>
+    <div class="row justify-content-center">
+      <div class="col-sm-8 text-center">
+        <img src="static/ablation-breakdown.webp" style="width:100%" class="img-fluid"
+             alt="Ablation results">
+      </div>
+    </div>
+    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
+      <i>(a)</i> Per-component ablation on Vase.
+      <i>(b)</i> Output decomposition on all three Shiny Partial scenes: near-binary alpha masks
+      and near-uniform albedo maps confirm the cubemap absorbs the dominant appearance signal.
+    </p>
+    <br>
+    <table class="table" style="text-align:center; font-size:14px">
+      <thead>
+        <tr>
+          <th rowspan="2">Variant</th>
+          <th colspan="4">Environment Map</th>
+          <th colspan="4">Novel-View Render</th>
+        </tr>
+        <tr>
+          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
+          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Full model (Ours)</b></td>
+          <td><b>18.51</b></td><td><b>0.635</b></td><td><b>0.487</b></td><td><b>0.082</b></td>
+          <td><b>38.56</b></td><td><b>0.988</b></td><td><b>0.022</b></td><td><b>0.002</b></td>
+        </tr>
+        <tr>
+          <td>\(\rho\)-weighted \(\mathbf{E}\)</td>
+          <td>13.94</td><td>0.569</td><td>0.546</td><td>0.146</td>
+          <td>36.16</td><td>0.982</td><td>0.036</td><td>0.003</td>
+        </tr>
+        <tr>
+          <td>w/o \(\mathcal{L}_\alpha\)</td>
+          <td>12.91</td><td>0.466</td><td>0.559</td><td>0.177</td>
+          <td>33.75</td><td>0.977</td><td>0.045</td><td>0.004</td>
+        </tr>
+        <tr>
+          <td>w/o \(\mathcal{L}_n\)</td>
+          <td>8.68</td><td>0.098</td><td>0.621</td><td>0.337</td>
+          <td>35.82</td><td>0.978</td><td>0.042</td><td>0.004</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Limitations -->
+  <div class="section">
+    <h2>Limitations</h2>
+    <hr>
+    <p>
+      PanoLess is designed for highly specular surfaces. On diffuse or rough objects, the gradient
+      path from the image loss to the cubemap weakens, and the albedo absorbs appearance that should
+      instead train the environment map. The method is also sensitive to camera pose accuracy: a
+      perturbation of just 0.5° is enough to drop envmap PSNR by roughly 6 dB, consistent with the
+      linear sensitivity of reflection directions to normal errors,
+      \(\|\delta\boldsymbol{\omega}_r\| \le 4\|\delta\mathbf{n}\|\).
+    </p>
+    <div class="row align-items-center">
+      <div class="col-sm-6 justify-content-center text-center">
+        <img src="static/limitations.webp" style="width:100%" class="img-fluid"
+             alt="Failure case">
+        <p style="font-size:14px; margin-top:8px">Failure case on a diffuse surface (coffee cup).</p>
+      </div>
+      <div class="col-sm-6 justify-content-center text-center">
+        <img src="static/pose-jitter.webp" style="width:100%" class="img-fluid"
+             alt="Pose jitter sensitivity">
+        <p style="font-size:14px; margin-top:8px">Envmap PSNR as a function of pose perturbation \(\sigma\).</p>
+      </div>
+    </div>
+    <br>
+    <div class="row justify-content-center">
+      <div class="col-sm-7">
+        <table class="table" style="text-align:center; font-size:14px">
+          <thead>
+            <tr>
+              <th>\(\sigma\) (°)</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>0.0</td><td><b>18.41</b></td><td><b>0.637</b></td><td><b>0.490</b></td><td><b>0.083</b></td></tr>
+            <tr><td>0.5</td><td>12.04</td><td>0.341</td><td>0.599</td><td>0.218</td></tr>
+            <tr><td>1.0</td><td>11.71</td><td>0.319</td><td>0.616</td><td>0.224</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BibTeX -->
+  <div class="section">
+    <h2>Bibtex</h2>
+    <hr>
+    <div class="bibtexsection">@InProceedings{das2026panoless,
+  title     = {{PanoLess}: Environment Reconstruction from Partial Reflective Views},
+  author    = {Das, Ahitagni and Veeraraghavan, Ashok and Boominathan, Vivek},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year      = {2026},
+}</div>
+  </div>
+
+  <hr>
+  <footer>
+    <p>Send feedback and questions to <a href="mailto:adas@rice.edu">Ahitagni Das</a></p>
+  </footer>
+
+</div>
+
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
+</body>
+</html>
