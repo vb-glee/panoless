@@ -63,7 +63,7 @@ Key flags:
 | Flag | Default | Description |
 |---|---|---|
 | `--iterations` | 45000 | Total training iterations |
-| `--env_start_iter` | 3000 | Iteration to activate the environment map |
+| `--env_start_iter` | 0 | Iteration to activate the environment map (0 = from the first iteration) |
 | `--pose_jitter_deg` | 0.0 | Std dev (degrees) of rotation noise applied to train cameras |
 | `--pose_jitter_seed` | 42 | RNG seed for pose jitter |
 
