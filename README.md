@@ -48,7 +48,7 @@ If you already cloned without `--recursive`, run `git submodule update --init --
 
 We evaluate on:
 
-- **Shiny Partial** (ours) — Blender renders from a single hemisphere with ground-truth environment maps; three scenes: Cola, Vase, Mirror (100 train / 200 test images each).
+- **Shiny Partial** (ours) — Blender renders from a single hemisphere with ground-truth environment maps; three scenes: Cola, Vase, Mirror (100 train / 200 test images each). [Download](https://drive.google.com/drive/folders/1YBVAv5UO2moO691udmFafXf7titgpcy4?usp=sharing).
 - **Partial Shiny Blender** — single-hemisphere subset of [Ref-NeRF's Shiny Blender](https://storage.googleapis.com/gresearch/refraw360/ref.zip).
 - **Shiny Real** — handheld video captures processed with COLMAP.
 
