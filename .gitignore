@@ -39,3 +39,7 @@ dist/
 .DS_Store
 Thumbs.db
 envs/
+
+# project page: the demo needs its scene data
+!docs/data/
+!docs/data/*.json

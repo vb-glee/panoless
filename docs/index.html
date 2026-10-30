@@ -1,357 +1,865 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PanoLess: Environment Reconstruction from Partial Reflective Views, ECCV 2026">
-  <meta name="author" content="Ahitagni Das, Ashok Veeraraghavan, Vivek Boominathan">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="PanoLess: Environment Reconstruction from Partial Reflective Views (ECCV 2026)">
+<title>PanoLess: Environment Reconstruction from Partial Reflective Views</title>
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<style>
+/* Layout: a wide centred sheet (about 90% of the window). Each scene is a column: the object above, its environment below.
+   Columns sit side by side and stack on narrow screens. Type follows ahidas.com: one system sans throughout. Light only. */
+:root {
+  --bg: #ffffff;
+  --ink: #111214;
+  --muted: #8b8f96;
+  --faint: #e6e7ea;
+  --wash: #f4f5f6;
+  --panel: #f8f9fa;   /* scene boxes; the object view uses it too */
+  --cam: #6b7079;    /* training cameras and their passes */
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: light;
+}
+html, body { background: var(--bg); color: var(--ink); }
+body { font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+.page {
+  width: min(90vw, 1480px); max-width: 100%; margin: 0 auto; box-sizing: border-box;
+  padding-block: 60px 64px;   /* white strip above the grey title block, as on vincentsitzmann.com/siren */
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+@media (max-width: 700px) { .page { width: 100%; } }
+/* spacing follows vincentsitzmann.com/siren (Bootstrap 4 jumbotron): title, venue, rule, authors, buttons */
+header { display: flex; flex-direction: column; align-items: center; gap: 0; text-align: center; padding-block: 40px 20px;
+  background: #e9ecef; box-shadow: 0 0 0 100vmax #e9ecef; clip-path: inset(0 -100vmax); }   /* full-bleed grey title block, as on vb-glee.github.io/panoless */
+h1 { margin: 0 0 8px; font-size: clamp(24px, 3vw, 36px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; max-width: 32ch; text-wrap: balance; }
+header .venue { margin: 0; font-size: clamp(20px, 2.4vw, 28px); font-weight: 500; line-height: 1.2; }
+header hr { align-self: stretch; margin: 8px 0; border: 0; border-top: 1px solid rgba(0, 0, 0, .1); }
+header .authors { margin: 0; line-height: 1.3; font-size: clamp(16px, 1.6vw, 20px); }
+header .authors a { color: #007bff; text-decoration: none; }   /* Bootstrap link colour, as on vincentsitzmann.com/siren */
+header .authors a:hover { color: #0056b3; }
+header .affil { margin: 3px 0 0; line-height: 1.3; font-size: clamp(14px, 1.3vw, 16px); color: var(--muted); }
+/* paper links: an icon above each label */
+header nav { display: flex; gap: 8px; margin-top: 16px; }
+header nav a { width: 84px; display: flex; flex-direction: column; align-items: center; gap: 4px;   /* equal widths keep the three evenly spaced */
+  font-size: 14px; font-weight: 500; color: #007bff; text-decoration: none; }
+header nav a:hover { color: #0056b3; }
+header nav a:focus-visible { outline: 1px solid #007bff; outline-offset: 4px; }
+header nav .ico { height: 76px; display: flex; align-items: center; justify-content: center; }   /* same box for all three, so icons and labels line up */
+/* paper icon: the front page; on hover four more pages turn out from behind it about their centre, two to each side */
+header nav .fan { position: relative; width: 50px; height: 64px; filter: grayscale(1); opacity: .6; }
+header nav .fan i { position: absolute; left: 0; top: 0; width: 50px; height: 64px; box-sizing: border-box; border: 1px solid #ced4da;
+  background: #fff url(static/paper-pages.webp) 0 0 / 500% 100% no-repeat; background-position-x: calc(var(--k) * 25%);
+  transform-origin: 50% 50%; z-index: var(--z); transition: transform .35s ease; }
+header nav a:hover .fan i { transform: rotate(calc(var(--x) * 7deg)); }
+@media (prefers-reduced-motion: reduce) { header nav .fan i { transition: none; } }
+header nav .ico svg { width: 60px; height: 60px; color: #8b8f96; }   /* greyed out */
 
-  <title>PanoLess: Environment Reconstruction from Partial Reflective Views</title>
+/* the three scenes span the same width as the text sections below */
+.demo { width: 100%; max-width: 1070px; box-sizing: border-box; margin: 28px auto 0; }
+.scenes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 700px) { .scenes { grid-template-columns: minmax(0, 1fr); gap: 56px; } }
+.scene { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border: 1.5px solid #dee2e6; background: var(--panel); }   /* each scene in its own thin box */
+.scene h2 { margin: 0; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.scene h2 span { font-weight: 400; font-size: 12px; color: var(--muted); }
+/* object on the left (30% of the width, full height); coverage and environment stacked on the right */
+.pair { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); grid-template-areas: "obj cov" "obj env"; gap: 12px; }
+.pair .p-obj { grid-area: obj; } .pair .p-cov { grid-area: cov; } .pair .p-env { grid-area: env; }
+.p-obj .box { flex: 1; aspect-ratio: auto; min-height: 0; }
+.pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cap { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; color: var(--muted); }
+.cap > span:first-child { color: var(--ink); }
 
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
-        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
-        crossorigin="anonymous">
-  <link href="offcanvas.css" rel="stylesheet">
+.box { position: relative; width: 100%; max-width: 100%; aspect-ratio: 2 / 1; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+.box canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.view { cursor: grab; }
+.world { background: var(--wash); cursor: grab; }
+.world.flat { background: var(--panel); cursor: crosshair; }
+.covmap { cursor: crosshair; }
+.covmap, .world { box-sizing: border-box; border: 1px solid #e3e6e9; }   /* very light frame on the two maps */
+.world.flat .sphere, .world:not(.flat) .flatmap { display: none; }
+.box.dragging { cursor: grabbing !important; }
+.tag { position: absolute; left: 0; top: 0; font-size: 12px; color: var(--cam); white-space: nowrap; pointer-events: none; transform: translate(-50%, calc(-100% - 6px)); }
+.readout { position: absolute; left: 8px; bottom: 6px; font: 11px var(--sans); color: var(--ink);
+  background: rgba(255,255,255,.85); padding: 1px 6px; pointer-events: none; }
 
-  <script>
-    MathJax = {
-      tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] }
-    };
-  </script>
-  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+.links { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.links button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; }
+.links button:hover { color: var(--ink); }
+.links button[aria-pressed="true"] { color: var(--ink); }
+.links button.act { color: var(--ink); }
+button:focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+
+.bar { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; white-space: nowrap; }
+.bar .links { flex-wrap: nowrap; }
+.stat { font: 12px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat b { font-weight: 500; color: var(--ink); }
+.legend { display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 16px; }
+.legend b { font-weight: 500; color: var(--ink); }
+.legend .key { display: flex; align-items: center; gap: 12px; }
+.legend p { margin: 0; }
+/* text sections use the original site's 1000px column */
+.section { width: 100%; max-width: 1000px; box-sizing: border-box; padding-inline: 15px; margin: 24px auto 0; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.section h2 { margin: 0; font-size: clamp(22px, 2.5vw, 30px); font-weight: 500; letter-spacing: -0.015em; text-align: center; }
+.section p { margin: 0; font-size: 16px; line-height: 1.5; text-align: justify; }   /* as on vb-glee.github.io/panoless */
+.section p b { font-weight: 600; }
+.section + .section { margin-top: 56px; }
+.section figure { margin: 6px 0 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.section figure img { display: block; width: 100%; height: auto; }
+.section a.paper { display: block; border: 1px solid #dee2e6; }
+.section a.paper:hover { border-color: #007bff; }
+.section figure.narrow img { width: min(100%, 667px); }
+.section figure.medium img { width: min(100%, 820px); }
+.section figcaption, .section .cap2 { font-size: 14px; line-height: 1.5; color: var(--ink); text-align: center; }
+.figrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; width: 100%; align-items: start; }
+@media (max-width: 640px) { .figrow { grid-template-columns: minmax(0, 1fr); } }
+.tablewrap { width: 100%; overflow-x: auto; }
+.tablewrap.narrow { max-width: 560px; }
+table.res { width: 100%; border-collapse: collapse; font-size: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+table.res th, table.res td { padding: 7px 10px; border-top: .5px solid var(--faint); white-space: nowrap; }
+table.res thead th { font-weight: 500; border-top: 0; border-bottom: .5px solid var(--muted); }
+table.res thead tr:first-child th { border-bottom: .5px solid var(--faint); }
+table.res td:first-child, table.res th:first-child { text-align: left; }
+table.res b { font-weight: 600; }
+.bibtex { width: 100%; box-sizing: border-box; margin: 0; padding: 22px 28px; background: var(--wash); font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; overflow-x: auto; text-align: left; }
+footer { width: 100%; max-width: 1000px; box-sizing: border-box; padding: 0 15px; margin: 0 auto; font-size: 14px; color: var(--muted); text-align: center; }
+footer a { color: var(--ink); text-decoration: none; }
+.ramp { display: inline-grid; grid-template-columns: auto 160px auto; align-items: center; gap: 8px; }
+.ramp i { height: 8px; background: linear-gradient(90deg, #f4f5f6, #26282c); border: .5px solid var(--faint); }
+</style>
 </head>
-
 <body>
+<div class="page">
+  <header>
+    <h1>PanoLess: Environment Reconstruction from Partial Reflective Views</h1>
+    <p class="venue">ECCV 2026</p>
+    <hr>
+    <p class="authors"><a href="https://scholar.google.com/citations?user=GLTc7LcAAAAJ&amp;hl=en">Ahitagni Das</a>, <a href="https://scholar.google.com/citations?user=tI-oUmsAAAAJ&amp;hl=en">Ashok Veeraraghavan</a>, <a href="https://scholar.google.com/citations?user=wwf-WgUAAAAJ&amp;hl=en">Vivek Boominathan</a></p>
+    <p class="affil">Rice University</p>
+    <nav aria-label="Paper links">
+      <a href="https://arxiv.org/abs/2607.25362"><span class="ico"><span class="fan" aria-hidden="true"><i style="--k:0;--x:0;--z:3"></i><i style="--k:1;--x:-1;--z:2"></i><i style="--k:2;--x:1;--z:2"></i><i style="--k:3;--x:-2;--z:1"></i><i style="--k:4;--x:2;--z:1"></i></span></span><span>Paper</span></a>
+      <a href="https://github.com/vb-glee/panoless"><span class="ico"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span>Code</span></a>
+      <a href="https://drive.google.com/drive/folders/1YBVAv5UO2moO691udmFafXf7titgpcy4?usp=sharing"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5H6.5a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.6 8.6 4.5 4.5 0 0 1 17.5 18.5H17"/><path d="M12 11.5v9M9 17.5l3 3 3-3"/></svg></span><span>Data</span></a>
+    </nav>
+  </header>
 
-<div class="jumbotron jumbotron-fluid">
-  <div class="container"></div>
-  <h2>PanoLess: Environment Reconstruction<br>from Partial Reflective Views</h2>
-  <h3>ECCV 2026</h3>
-  <hr>
-  <p class="authors">
-    <a href="https://scholar.google.com/citations?user=GLTc7LcAAAAJ&hl=en">Ahitagni Das</a><sup>1</sup>,&nbsp;
-    <a href="https://scholar.google.com/citations?user=tI-oUmsAAAAJ&hl=en">Ashok Veeraraghavan</a><sup>1</sup>,&nbsp;
-    <a href="https://vivekboominathan.com/">Vivek Boominathan</a><sup>1</sup>
-  </p>
-  <p><sup>1</sup> Rice University</p>
-  <div class="btn-group" role="group" aria-label="Top menu">
-    <a class="btn btn-primary" href="https://arxiv.org/abs/2607.25362">Paper</a>
-    <a class="btn btn-primary" href="https://github.com/vb-glee/panoless">Code</a>
-    <a class="btn btn-primary" href="https://drive.google.com/drive/folders/1YBVAv5UO2moO691udmFafXf7titgpcy4?usp=sharing">Data</a>
+  <div class="demo">
+  <div class="scenes" id="scenes"></div>
+
+  <div class="legend">
+    <div class="key"><b>Coverage</b><span class="ramp" aria-hidden="true"><span>None</span><i></i><span>20+ photos</span></span></div>
+    <p>Number of training photos that saw each direction in a reflection. Directions no photo saw cannot be recovered.</p>
   </div>
-</div>
+  </div>
 
-<div class="container">
+  <section class="section" aria-labelledby="abstract">
+    <h2 id="abstract">Abstract</h2>
+    <p>Reflections from shiny objects and glass façades naturally extend the field of view of a camera, capturing the surrounding environment without the need to pan the camera or acquire a full panorama. We propose <b>PanoLess</b>, a Gaussian-splat-based framework that reconstructs the environment from images captured on only one side of a reflective surface. PanoLess leverages surface-aligned 2D Gaussian splats with deferred shading to recover accurate per-pixel normals and reflection cues, which are fused into a neural cubemap representation of the environment. In addition, PanoLess produces a <i>visibility map</i> that explicitly denotes which regions of the environment are supported by the partial reflective observations. Unlike existing inverse-rendering and reflection-aware Gaussian-splatting approaches, which typically require full 360° coverage and struggle under incomplete views, PanoLess enables consistent, physically grounded illumination estimation from partial-view input. We show that PanoLess achieves high-fidelity and geometrically consistent environment reconstruction, outperforming reflection-aware baselines on a new custom synthetic benchmark and publicly available datasets, and demonstrating generalization to real-world reflective captures.</p>
+  </section>
 
-  <!-- Teaser -->
-  <div class="section">
-    <div class="row">
-      <div class="col justify-content-center text-center">
-        <img src="static/teaser.webp" style="width:70%; display:block; margin:0 auto;" class="img-fluid" alt="PanoLess teaser">
-      </div>
+  <section class="section" aria-labelledby="method">
+    <h2 id="method">Method</h2>
+    <p>PanoLess represents the scene as a set of surface-aligned 2D Gaussian splats, which are rasterized into geometry and albedo buffers via differentiable alpha compositing. Each pixel's specular reflection direction is computed from the rasterized normals and used to index a learnable neural cubemap, whose response is added directly to the diffuse albedo to form the final render. A visibility accumulation pass during training records which cubemap directions receive gradient signal, producing the per-direction visibility map as a byproduct.</p>
+    <figure class="medium">
+      <img src="static/methodology.webp" alt="PanoLess pipeline" loading="lazy">
+      <figcaption><b>Pipeline.</b> 2D Gaussians are rasterized into normal, albedo, depth, and alpha buffers. Reflection directions \(\boldsymbol{\omega}_r = \mathbf{v} - 2(\mathbf{v}\cdot\mathbf{n})\mathbf{n}\) query the neural cubemap \(\mathbf{E}\). The final color \(\mathbf{C} = \mathbf{A} + \mathbf{E}(\boldsymbol{\omega}_r)\) is supervised by the joint loss \(\mathcal{L} = \mathcal{L}_i + \mathcal{L}_n + \mathcal{L}_\alpha\).</figcaption>
+    </figure>
+    <p>Because reflection-direction error scales linearly with normal error, \(\|\delta\boldsymbol{\omega}_r\| \le 4\|\delta\mathbf{n}\|\), accurate surface geometry is the single most important factor for environment recovery. This motivates the normal consistency loss \(\mathcal{L}_n\) as a core training objective.</p>
+  </section>
+
+  <section class="section" aria-labelledby="shinypartial">
+    <h2 id="shinypartial">Shiny Partial Benchmark</h2>
+    <p>We introduce <b>Shiny Partial</b>, a new benchmark for partial-view environment reconstruction with three scenes covering distinct reflector geometries: Cola (highly curved), Vase (moderately curved), and Mirror (planar). Each scene is captured from a single hemisphere of viewpoints, with ground-truth HDR environment maps provided for evaluation. PanoLess achieves roughly 5 dB higher environment-map PSNR than the best competing baseline across all three scenes.</p>
+    <figure>
+      <img src="static/shinypartial-env.webp" alt="Environment map comparisons on Shiny Partial" loading="lazy">
+      <figcaption>Recovered environment maps on Shiny Partial (Cola, Vase, Mirror). PanoLess reconstructs recognizable room structure, light sources, and color gradients. Baselines produce washed-out or incoherent results regardless of reflector curvature.</figcaption>
+    </figure>
+    <div class="tablewrap">
+      <table class="res">
+        <thead>
+          <tr><th rowspan="2">Method</th><th colspan="4">Environment Map</th><th colspan="3">Novel-View Render</th></tr>
+          <tr><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GaussianShader</td><td>12.14</td><td>0.458</td><td>0.543</td><td>0.198</td><td>25.32</td><td>0.877</td><td>0.141</td></tr>
+          <tr><td>GS-IR</td><td>11.09</td><td>0.419</td><td>0.571</td><td>0.219</td><td>26.14</td><td>0.882</td><td>0.136</td></tr>
+          <tr><td>Ref-Gaussian</td><td>10.77</td><td>0.384</td><td>0.587</td><td>0.235</td><td>25.91</td><td>0.864</td><td>0.152</td></tr>
+          <tr><td><b>PanoLess (Ours)</b></td><td><b>17.54</b></td><td><b>0.601</b></td><td><b>0.474</b></td><td><b>0.098</b></td><td><b>35.42</b></td><td><b>0.978</b></td><td><b>0.031</b></td></tr>
+        </tbody>
+      </table>
     </div>
-    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
-      Given multi-view images of a reflective object captured from a single hemisphere, PanoLess
-      recovers the surrounding environment map along with a visibility map that marks which
-      directions are constrained by the observed reflections.
-    </p>
-    <hr>
-  </div>
+  </section>
 
-  <!-- Abstract -->
-  <div class="section">
-    <h2>Abstract</h2>
-    <hr>
-    <p>
-      Reflections from shiny objects and glass façades naturally extend the field of view of a camera,
-      capturing the surrounding environment without the need to pan the camera or acquire a full panorama.
-      We propose <b>PanoLess</b>, a Gaussian-splat-based framework that reconstructs the environment from
-      images captured on only one side of a reflective surface. PanoLess leverages surface-aligned 2D
-      Gaussian splats with deferred shading to recover accurate per-pixel normals and reflection cues,
-      which are fused into a neural cubemap representation of the environment. In addition, PanoLess
-      produces a <i>visibility map</i> that explicitly denotes which regions of the environment are
-      supported by the partial reflective observations. Unlike existing inverse-rendering and
-      reflection-aware Gaussian-splatting approaches — which typically require full 360° coverage and
-      struggle under incomplete views — PanoLess enables consistent, physically grounded illumination
-      estimation from partial-view input. We show that PanoLess achieves high-fidelity and geometrically
-      consistent environment reconstruction, outperforming reflection-aware baselines on a new custom
-      synthetic benchmark and publicly available datasets, and demonstrating generalization to real-world
-      reflective captures.
-    </p>
-  </div>
+  <section class="section" aria-labelledby="real">
+    <h2 id="real">Real-World Captures</h2>
+    <p>We capture two scenes in the wild: a chrome sculpture and a convex safety mirror, each filmed handheld from a single side. Camera poses come from COLMAP and no fine-tuning or domain adaptation is applied.</p>
+    <figure class="narrow">
+      <img src="static/shinyreal.webp" alt="Real-world environment reconstruction" loading="lazy">
+      <figcaption>PanoLess recovers recognizable illumination structure, such as sky gradients, nearby buildings, and overhead lights, from partial-view handheld footage without any synthetic supervision.</figcaption>
+    </figure>
+  </section>
 
-  <!-- Method -->
-  <div class="section">
-    <h2>Method</h2>
-    <hr>
-    <p>
-      PanoLess represents the scene as a set of surface-aligned 2D Gaussian splats, which are
-      rasterized into geometry and albedo buffers via differentiable alpha compositing. Each pixel's
-      specular reflection direction is computed from the rasterized normals and used to index a
-      learnable neural cubemap, whose response is added directly to the diffuse albedo to form the
-      final render. A visibility accumulation pass during training records which cubemap directions
-      receive gradient signal, producing the per-direction visibility map as a byproduct.
-    </p>
-
-    <div class="row align-items-center">
-      <div class="col justify-content-center text-center">
-        <img src="static/methodology.webp" style="width:100%" class="img-fluid"
-             alt="PanoLess pipeline">
-      </div>
+  <section class="section" aria-labelledby="blender">
+    <h2 id="blender">Generalization: Partial Shiny Blender</h2>
+    <p>We test generalization on Partial Shiny Blender, single-hemisphere subsets of the Shiny Blender dataset (Car, Teapot, Coffee, Helmet, Toaster). These scenes have mixed diffuse and specular materials, outside PanoLess's primary design assumptions, making them a meaningful test of how far the approach transfers.</p>
+    <div class="figrow">
+      <figure><img src="static/shinyblender-env.webp" alt="Shiny Blender environment maps" loading="lazy"><figcaption>Recovered environment maps.</figcaption></figure>
+      <figure><img src="static/shinyblender-renders.webp" alt="Shiny Blender novel-view renders" loading="lazy"><figcaption>Novel-view renders.</figcaption></figure>
     </div>
-    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
-      <b>Pipeline.</b> 2D Gaussians are rasterized into normal, albedo, depth, and alpha buffers.
-      Reflection directions \(\boldsymbol{\omega}_r = \mathbf{v} - 2(\mathbf{v}\cdot\mathbf{n})\mathbf{n}\)
-      query the neural cubemap \(\mathbf{E}\). The final color
-      \(\mathbf{C} = \mathbf{A} + \mathbf{E}(\boldsymbol{\omega}_r)\) is supervised by the joint
-      loss \(\mathcal{L} = \mathcal{L}_i + \mathcal{L}_n + \mathcal{L}_\alpha\).
-    </p>
+  </section>
 
-    <p class="vspace-top">
-      Because reflection-direction error scales linearly with normal error,
-      \(\|\delta\boldsymbol{\omega}_r\| \le 4\|\delta\mathbf{n}\|\), accurate surface geometry is
-      the single most important factor for environment recovery. This motivates the normal
-      consistency loss \(\mathcal{L}_n\) as a core training objective.
-    </p>
-  </div>
-
-  <!-- Results: Shiny Partial -->
-  <div class="section">
-    <h2>Results: Shiny Partial Benchmark</h2>
-    <hr>
-    <p>
-      We introduce <b>Shiny Partial</b>, a new benchmark for partial-view environment reconstruction
-      with three scenes covering distinct reflector geometries: Cola (highly curved), Vase
-      (moderately curved), and Mirror (planar). Each scene is captured from a single hemisphere of
-      viewpoints, with ground-truth HDR environment maps provided for evaluation. PanoLess achieves
-      roughly 5 dB higher environment-map PSNR than the best competing baseline across all three
-      scenes.
-    </p>
-    <div class="row align-items-center">
-      <div class="col justify-content-center text-center">
-        <img src="static/shinypartial-env.webp" style="width:100%" class="img-fluid"
-             alt="Environment map comparisons on Shiny Partial">
-      </div>
+  <section class="section" aria-labelledby="ablation">
+    <h2 id="ablation">Ablation Study</h2>
+    <p>We ablate on the Vase scene. The normal consistency loss \(\mathcal{L}_n\) has by far the largest impact: removing it drops envmap PSNR from 18.51 to 8.68 dB and collapses SSIM to 0.098. Roughness-attenuating the cubemap lookup costs 4.6 dB, and removing the silhouette loss \(\mathcal{L}_\alpha\) costs 5.6 dB.</p>
+    <figure class="narrow">
+      <img src="static/ablation-breakdown.webp" alt="Ablation results" loading="lazy">
+      <figcaption><i>(a)</i> Per-component ablation on Vase. <i>(b)</i> Output decomposition on all three Shiny Partial scenes: near-binary alpha masks and near-uniform albedo maps confirm the cubemap absorbs the dominant appearance signal.</figcaption>
+    </figure>
+    <div class="tablewrap">
+      <table class="res">
+        <thead>
+          <tr><th rowspan="2">Variant</th><th colspan="4">Environment Map</th><th colspan="4">Novel-View Render</th></tr>
+          <tr><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Full model (Ours)</b></td><td><b>18.51</b></td><td><b>0.635</b></td><td><b>0.487</b></td><td><b>0.082</b></td><td><b>38.56</b></td><td><b>0.988</b></td><td><b>0.022</b></td><td><b>0.002</b></td></tr>
+          <tr><td>\(\rho\)-weighted \(\mathbf{E}\)</td><td>13.94</td><td>0.569</td><td>0.546</td><td>0.146</td><td>36.16</td><td>0.982</td><td>0.036</td><td>0.003</td></tr>
+          <tr><td>w/o \(\mathcal{L}_\alpha\)</td><td>12.91</td><td>0.466</td><td>0.559</td><td>0.177</td><td>33.75</td><td>0.977</td><td>0.045</td><td>0.004</td></tr>
+          <tr><td>w/o \(\mathcal{L}_n\)</td><td>8.68</td><td>0.098</td><td>0.621</td><td>0.337</td><td>35.82</td><td>0.978</td><td>0.042</td><td>0.004</td></tr>
+        </tbody>
+      </table>
     </div>
-    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
-      Recovered environment maps on Shiny Partial (Cola, Vase, Mirror). PanoLess reconstructs
-      recognizable room structure, light sources, and color gradients. Baselines produce
-      washed-out or incoherent results regardless of reflector curvature.
-    </p>
+  </section>
 
-    <br>
-    <table class="table" style="text-align:center; font-size:14px">
-      <thead>
-        <tr>
-          <th rowspan="2">Method</th>
-          <th colspan="4">Environment Map</th>
-          <th colspan="3">Novel-View Render</th>
-        </tr>
-        <tr>
-          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
-          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>GaussianShader</td>
-          <td>12.14</td><td>0.458</td><td>0.543</td><td>0.198</td>
-          <td>25.32</td><td>0.877</td><td>0.141</td>
-        </tr>
-        <tr>
-          <td>GS-IR</td>
-          <td>11.09</td><td>0.419</td><td>0.571</td><td>0.219</td>
-          <td>26.14</td><td>0.882</td><td>0.136</td>
-        </tr>
-        <tr>
-          <td>Ref-Gaussian</td>
-          <td>10.77</td><td>0.384</td><td>0.587</td><td>0.235</td>
-          <td>25.91</td><td>0.864</td><td>0.152</td>
-        </tr>
-        <tr>
-          <td><b>PanoLess (Ours)</b></td>
-          <td><b>17.54</b></td><td><b>0.601</b></td><td><b>0.474</b></td><td><b>0.098</b></td>
-          <td><b>35.42</b></td><td><b>0.978</b></td><td><b>0.031</b></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Results: Shiny Real -->
-  <div class="section">
-    <h2>Results: Real-World Captures</h2>
-    <hr>
-    <p>
-      We capture two scenes in the wild: a chrome sculpture and a convex safety mirror, each filmed
-      handheld from a single side. Camera poses come from COLMAP and no fine-tuning or domain
-      adaptation is applied.
-    </p>
-    <div class="row justify-content-center">
-      <div class="col-sm-8 text-center">
-        <img src="static/shinyreal.webp" style="width:100%" class="img-fluid"
-             alt="Real-world environment reconstruction">
-      </div>
+  <section class="section" aria-labelledby="limitations">
+    <h2 id="limitations">Limitations</h2>
+    <p>PanoLess is designed for highly specular surfaces. On diffuse or rough objects, the gradient path from the image loss to the cubemap weakens, and the albedo absorbs appearance that should instead train the environment map. The method is also sensitive to camera pose accuracy: a perturbation of just 0.5° is enough to drop envmap PSNR by roughly 6 dB, consistent with the linear sensitivity of reflection directions to normal errors, \(\|\delta\boldsymbol{\omega}_r\| \le 4\|\delta\mathbf{n}\|\).</p>
+    <div class="figrow">
+      <figure><img src="static/limitations.webp" alt="Failure case on a diffuse surface" loading="lazy"><figcaption>Failure case on a diffuse surface (coffee cup).</figcaption></figure>
+      <figure><img src="static/pose-jitter.webp" alt="Pose jitter sensitivity" loading="lazy"><figcaption>Envmap PSNR as a function of pose perturbation \(\sigma\).</figcaption></figure>
     </div>
-    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
-      PanoLess recovers recognizable illumination structure — sky gradients, nearby buildings,
-      overhead lights — from partial-view handheld footage without any synthetic supervision.
-    </p>
-  </div>
-
-  <!-- Generalization: Shiny Blender -->
-  <div class="section">
-    <h2>Generalization: Partial Shiny Blender</h2>
-    <hr>
-    <p>
-      We test generalization on Partial Shiny Blender, single-hemisphere subsets of the Shiny
-      Blender dataset (Car, Teapot, Coffee, Helmet, Toaster). These scenes have mixed diffuse and
-      specular materials, outside PanoLess's primary design assumptions, making them a meaningful
-      test of how far the approach transfers.
-    </p>
-    <div class="row align-items-center">
-      <div class="col-sm-6 justify-content-center text-center">
-        <img src="static/shinyblender-env.webp" style="width:100%" class="img-fluid"
-             alt="Shiny Blender environment maps">
-        <p style="font-size:14px; margin-top:8px">Recovered environment maps.</p>
-      </div>
-      <div class="col-sm-6 justify-content-center text-center">
-        <img src="static/shinyblender-renders.webp" style="width:100%" class="img-fluid"
-             alt="Shiny Blender novel-view renders">
-        <p style="font-size:14px; margin-top:8px">Novel-view renders.</p>
-      </div>
+    <div class="tablewrap narrow">
+      <table class="res">
+        <thead><tr><th>\(\sigma\) (°)</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th></tr></thead>
+        <tbody>
+          <tr><td>0.0</td><td><b>18.41</b></td><td><b>0.637</b></td><td><b>0.490</b></td><td><b>0.083</b></td></tr>
+          <tr><td>0.5</td><td>12.04</td><td>0.341</td><td>0.599</td><td>0.218</td></tr>
+          <tr><td>1.0</td><td>11.71</td><td>0.319</td><td>0.616</td><td>0.224</td></tr>
+        </tbody>
+      </table>
     </div>
-  </div>
+  </section>
 
-  <!-- Ablation -->
-  <div class="section">
-    <h2>Ablation Study</h2>
-    <hr>
-    <p>
-      We ablate on the Vase scene. The normal consistency loss \(\mathcal{L}_n\) has by far the
-      largest impact: removing it drops envmap PSNR from 18.51 to 8.68 dB and collapses SSIM to
-      0.098. Roughness-attenuating the cubemap lookup costs 4.6 dB, and removing the silhouette
-      loss \(\mathcal{L}_\alpha\) costs 5.6 dB.
-    </p>
-    <div class="row justify-content-center">
-      <div class="col-sm-8 text-center">
-        <img src="static/ablation-breakdown.webp" style="width:100%" class="img-fluid"
-             alt="Ablation results">
-      </div>
-    </div>
-    <p class="caption center" style="width:100%; font-size:14px; margin-top:10px; text-align:center">
-      <i>(a)</i> Per-component ablation on Vase.
-      <i>(b)</i> Output decomposition on all three Shiny Partial scenes: near-binary alpha masks
-      and near-uniform albedo maps confirm the cubemap absorbs the dominant appearance signal.
-    </p>
-    <br>
-    <table class="table" style="text-align:center; font-size:14px">
-      <thead>
-        <tr>
-          <th rowspan="2">Variant</th>
-          <th colspan="4">Environment Map</th>
-          <th colspan="4">Novel-View Render</th>
-        </tr>
-        <tr>
-          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
-          <th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><b>Full model (Ours)</b></td>
-          <td><b>18.51</b></td><td><b>0.635</b></td><td><b>0.487</b></td><td><b>0.082</b></td>
-          <td><b>38.56</b></td><td><b>0.988</b></td><td><b>0.022</b></td><td><b>0.002</b></td>
-        </tr>
-        <tr>
-          <td>\(\rho\)-weighted \(\mathbf{E}\)</td>
-          <td>13.94</td><td>0.569</td><td>0.546</td><td>0.146</td>
-          <td>36.16</td><td>0.982</td><td>0.036</td><td>0.003</td>
-        </tr>
-        <tr>
-          <td>w/o \(\mathcal{L}_\alpha\)</td>
-          <td>12.91</td><td>0.466</td><td>0.559</td><td>0.177</td>
-          <td>33.75</td><td>0.977</td><td>0.045</td><td>0.004</td>
-        </tr>
-        <tr>
-          <td>w/o \(\mathcal{L}_n\)</td>
-          <td>8.68</td><td>0.098</td><td>0.621</td><td>0.337</td>
-          <td>35.82</td><td>0.978</td><td>0.042</td><td>0.004</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <section class="section" aria-labelledby="paper">
+    <h2 id="paper">Paper</h2>
+    <figure>
+      <a class="paper" href="https://arxiv.org/abs/2607.25362"><img src="static/paper-thumbnail.webp" alt="The PanoLess paper pages with figures, linking to arXiv" loading="lazy"></a>
+    </figure>
+  </section>
 
-  <!-- Limitations -->
-  <div class="section">
-    <h2>Limitations</h2>
-    <hr>
-    <p>
-      PanoLess is designed for highly specular surfaces. On diffuse or rough objects, the gradient
-      path from the image loss to the cubemap weakens, and the albedo absorbs appearance that should
-      instead train the environment map. The method is also sensitive to camera pose accuracy: a
-      perturbation of just 0.5° is enough to drop envmap PSNR by roughly 6 dB, consistent with the
-      linear sensitivity of reflection directions to normal errors,
-      \(\|\delta\boldsymbol{\omega}_r\| \le 4\|\delta\mathbf{n}\|\).
-    </p>
-    <div class="row align-items-center">
-      <div class="col-sm-6 justify-content-center text-center">
-        <img src="static/limitations.webp" style="width:100%" class="img-fluid"
-             alt="Failure case">
-        <p style="font-size:14px; margin-top:8px">Failure case on a diffuse surface (coffee cup).</p>
-      </div>
-      <div class="col-sm-6 justify-content-center text-center">
-        <img src="static/pose-jitter.webp" style="width:100%" class="img-fluid"
-             alt="Pose jitter sensitivity">
-        <p style="font-size:14px; margin-top:8px">Envmap PSNR as a function of pose perturbation \(\sigma\).</p>
-      </div>
-    </div>
-    <br>
-    <div class="row justify-content-center">
-      <div class="col-sm-7">
-        <table class="table" style="text-align:center; font-size:14px">
-          <thead>
-            <tr>
-              <th>\(\sigma\) (°)</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>L1 ↓</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>0.0</td><td><b>18.41</b></td><td><b>0.637</b></td><td><b>0.490</b></td><td><b>0.083</b></td></tr>
-            <tr><td>0.5</td><td>12.04</td><td>0.341</td><td>0.599</td><td>0.218</td></tr>
-            <tr><td>1.0</td><td>11.71</td><td>0.319</td><td>0.616</td><td>0.224</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- BibTeX -->
-  <div class="section">
-    <h2>Bibtex</h2>
-    <hr>
-    <div class="bibtexsection">@InProceedings{das2026panoless,
+  <section class="section" aria-labelledby="bibtex">
+    <h2 id="bibtex">BibTeX</h2>
+<pre class="bibtex">@InProceedings{das2026panoless,
   title     = {{PanoLess}: Environment Reconstruction from Partial Reflective Views},
   author    = {Das, Ahitagni and Veeraraghavan, Ashok and Boominathan, Vivek},
   booktitle = {European Conference on Computer Vision (ECCV)},
   year      = {2026},
-}</div>
-  </div>
+}</pre>
+  </section>
 
-  <hr>
-  <footer>
-    <p>Send feedback and questions to <a href="mailto:adas@rice.edu">Ahitagni Das</a></p>
-  </footer>
+  <footer>Send feedback and questions to <a href="https://ahidas.com">Ahitagni Das</a>, <a href="mailto:adas@rice.edu">adas@rice.edu</a></footer>
 
 </div>
 
-<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
-        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
-        crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
-        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
-        crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
-        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
-        crossorigin="anonymous"></script>
+<template id="sceneTpl">
+  <section class="scene">
+    <div class="pair">
+      <div class="pane p-obj">
+        <div class="cap"><span class="s-name"></span></div>
+        <div class="box view"><div class="tag">Training photos</div></div>
+      </div>
+      <div class="pane p-cov">
+        <div class="cap"><span>Coverage</span>
+          <span class="links"><button class="s-clear">Clear</button><button class="s-reset">Reset</button></span>
+        </div>
+        <div class="box covmap"><canvas></canvas></div>
+      </div>
+      <div class="pane p-env">
+        <div class="cap"><span>Environment</span>
+          <span class="links s-mode" role="group" aria-label="Environment view">
+            <button data-mode="sphere" aria-pressed="true">360°</button><button data-mode="flat">Flat</button>
+          </span>
+        </div>
+        <div class="box world"><canvas class="flatmap"></canvas><div class="readout" hidden></div></div>
+      </div>
+    </div>
+    <div class="bar">
+      <div class="stat"><b class="s-pct">0%</b> Env. coverage<span class="s-user"></span></div>
+      <div class="links s-layer" role="group" aria-label="Environment layer">
+        <button data-layer="ours" aria-pressed="true">PanoLess</button><button data-layer="vis">Visibility</button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>window.MathJax = { svg: { fontCache: "global" }, options: { enableMenu: false } };</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// data/<id>.json: cameras (display frame, dataset units, centred on the look-at point) and the
+// object's silhouette profile, both read from the Shiny Partial transforms and alpha masks.
+// tint: per-channel metal reflectance, least-squares fit of each object's training render against
+// the ground-truth panorama sampled along reflections of the dataset's ground-truth normals.
+const SCENES = [
+  { id: "vase", name: "Vase", data: "data/vase.json", tint: [0.771, 0.795, 0.84],
+    env: { gt: "img/vase_gt.jpg", ours: "img/vase_ours.jpg", vis: "img/vase_vis.jpg" } },
+  { id: "cola", name: "Cola", data: "data/cola.json", tint: [0.619, 0.63, 0.765], view: [-27, -118],
+    env: { gt: "img/can_gt.jpg", ours: "img/can_ours.jpg", vis: "img/can_vis.jpg" } },
+  { id: "mirror", name: "Mirror", data: "data/mirror.json", tint: [0.841, 0.678, 1.0],
+    env: { gt: "img/mirror_gt.jpg", ours: "img/mirror_ours.jpg", vis: "img/mirror_vis.jpg" } },
+];
+const CAM = 0x6b7079, HILITE = 0x111214;   // greys only
+const OBJECT_HEIGHT = 2.2;   // every scene is rescaled so the object is this tall; directions are unaffected
+
+// ---- equirect convention of the PanoLess exports (envmap_env_cood1): world z up,
+// u = (atan2(y, x) + π) / 2π, v measured from the top = θ / π. Display frame is y up: world (x, y, z) = display (X, -Z, Y).
+const EQUIRECT_GLSL = `
+  vec2 dirToUv(vec3 d) {
+    vec3 w = vec3(d.x, -d.z, d.y);
+    return vec2((atan(w.y, w.x) + 3.14159265) * 0.15915494, 1.0 - acos(clamp(w.z, -1.0, 1.0)) * 0.31830989);
+  }
+  vec4 sampleEquirect(sampler2D t, vec2 uv) {   // mip-correct, no seam where atan wraps
+    vec2 dx = dFdx(uv), dy = dFdy(uv);
+    dx.x -= floor(dx.x + 0.5); dy.x -= floor(dy.x + 0.5);
+    return textureGrad(t, uv, dx, dy);
+  }`;
+function dirToUv(X, Y, Z) {
+  return [(Math.atan2(-Z, X) + Math.PI) / (2 * Math.PI), 1 - Math.acos(Math.max(-1, Math.min(1, Y))) / Math.PI];
+}
+function uvToDir(u, v) {
+  const ph = u * 2 * Math.PI - Math.PI, th = (1 - v) * Math.PI;
+  const x = Math.sin(th) * Math.cos(ph), y = Math.sin(th) * Math.sin(ph), z = Math.cos(th);
+  return new THREE.Vector3(x, z, -y);
+}
+
+const loadImage = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+function envTexture(img) {
+  if (!img) return null;
+  const t = new THREE.Texture(img);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 8; t.needsUpdate = true;
+  return t;
+}
+function renderer() {
+  const r = new THREE.WebGLRenderer({ antialias: true });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.outputColorSpace = THREE.SRGBColorSpace;
+  return r;
+}
+
+// coverage grid, one cell per degree, rows top first
+const GW = 360, GH = 180;
+const rowW = Float32Array.from({ length: GH }, (_, j) => Math.sin((j + 0.5) / GH * Math.PI));
+const totalW = rowW.reduce((a, b) => a + b, 0) * GW;
+
+const frustumGeo = (() => {
+  const s = 0.1, h = 0.07, d = 0.16;
+  const p = [0,0,0,-s,-h,-d, 0,0,0,s,-h,-d, 0,0,0,s,h,-d, 0,0,0,-s,h,-d,
+             -s,-h,-d,s,-h,-d, s,-h,-d,s,h,-d, s,h,-d,-s,h,-d, -s,h,-d,-s,-h,-d];
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(p, 3)); return g;
+})();
+
+class SceneDemo {
+  constructor(cfg, data, root) {
+    this.cfg = cfg; this.root = root; this.layer = "ours"; this.mode = "sphere";
+    this.count = new Uint16Array(GW * GH); this.tmp = new Uint8Array(GW * GH);
+    this.dirtySeen = true; this.hover = null; this.visible = true;
+
+    const q = s => root.querySelector(s);
+    q(".s-name").textContent = cfg.name;
+    this.viewEl = q(".view"); this.worldEl = q(".world"); this.tag = q(".tag");
+    this.readout = q(".readout"); this.pctEl = q(".s-pct"); this.userEl = q(".s-user");
+
+    // dataset units -> display units
+    const zs = data.mesh ? data.mesh.position.filter((_, i) => i % 3 === 1)
+      : data.shape === "plane" ? data.corners.map(c => c[1]) : data.profile.map(p => p[1]);
+    this.scale = OBJECT_HEIGHT / (Math.max(...zs) - Math.min(...zs));
+    const s = this.scale;
+    this.trainCams = data.cameras.map(c => new THREE.Vector3(c[0] * s, c[1] * s, c[2] * s));
+
+    this.buildObjectView(data);
+    this.buildWorldView();
+    this.bindControls();
+    this.captures = this.trainCams.map(p => ({ pos: p.clone(), user: false }));
+    this.drawCameras();
+    new ResizeObserver(() => this.resize()).observe(this.viewEl);
+    new ResizeObserver(() => this.resize()).observe(this.worldEl);
+    new ResizeObserver(() => this.resize()).observe(this.cc);
+    new IntersectionObserver(([e]) => { this.visible = e.isIntersecting; }).observe(root);
+    this.resize();
+  }
+
+  // ---------- object view ----------
+  buildObjectView(data) {
+    const s = this.scale;
+    this.r3 = renderer(); this.viewEl.prepend(this.r3.domElement);
+    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--panel").trim());
+    this.camera = new THREE.PerspectiveCamera(36, 2, 0.05, 200);
+    this.controls = new OrbitControls(this.camera, this.r3.domElement);
+    this.controls.enableDamping = true; this.controls.enablePan = false;
+    this.controls.minDistance = 2.4; this.controls.maxDistance = 80;
+
+    // the centre view: the closest camera, where the two passes cross
+    this.centreCam = this.trainCams.reduce((a, b) => (b.length() < a.length() ? b : a));
+    const c = this.centreCam.clone().normalize();
+    const side = new THREE.Vector3(0, 1, 0).cross(c).normalize();
+    this.homeDir = c.clone().multiplyScalar(0.55).add(side.multiplyScalar(0.8)).add(new THREE.Vector3(0, 0.45, 0)).normalize();
+    this.home = this.homeDir.clone().multiplyScalar(11); this.homeTarget = new THREE.Vector3();
+    this.camera.position.copy(this.home);
+    this.controls.addEventListener("start", () => { this.moved = true; });
+
+    this.chrome = new THREE.ShaderMaterial({
+      uniforms: { envMap: { value: null }, tint: { value: new THREE.Color(...this.cfg.tint) } },
+      vertexShader: `varying vec3 vPos; varying vec3 vNrm;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0); vPos = wp.xyz;
+          vNrm = normalize(mat3(modelMatrix) * normal);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }`,
+      fragmentShader: `uniform sampler2D envMap; uniform vec3 tint; varying vec3 vPos; varying vec3 vNrm;
+        ${EQUIRECT_GLSL}
+        void main() {
+          vec3 n = normalize(vNrm), i = normalize(vPos - cameraPosition);
+          if (dot(i, n) > 0.0) n = -n;
+          gl_FragColor = vec4(sampleEquirect(envMap, dirToUv(reflect(i, n))).rgb * tint, 1.0);
+          #include <colorspace_fragment>
+        }`,
+    });
+    this.objGroup = new THREE.Group(); this.scene.add(this.objGroup);
+    let maxR;
+    if (data.mesh) {
+      // the Shiny Partial mesh, placed as it was rendered (scripts/export_demo_meshes.py)
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(data.mesh.position.map(x => x * s), 3));
+      geo.setAttribute("normal", new THREE.Float32BufferAttribute(data.mesh.normal, 3));
+      geo.setIndex(data.mesh.index);
+      if (data.shape === "plane") this.chrome.side = THREE.DoubleSide;
+      this.surface = new THREE.Mesh(geo, this.chrome); this.objGroup.add(this.surface);
+      geo.computeBoundingBox(); const bb = geo.boundingBox;
+      maxR = Math.max(Math.abs(bb.min.x), bb.max.x, Math.abs(bb.min.z), bb.max.z);
+      if (data.shape !== "plane") this.objGroup.add(this.contactShadow(maxR, bb.min.y));
+      else maxR = 0.1;
+    } else if (data.shape === "plane") {
+      // flat mirror: rectangle fitted to the training silhouettes, facing the cameras
+      const c = data.corners.map(p => new THREE.Vector3(...p).multiplyScalar(s));
+      const e1 = c[1].clone().sub(c[0]), e2 = c[3].clone().sub(c[0]);
+      const w = e1.length(), h = e2.length(), n = new THREE.Vector3(...data.normal).normalize();
+      const geo = new THREE.PlaneGeometry(w, h, 80, 80);
+      geo.applyMatrix4(new THREE.Matrix4().makeBasis(e1.clone().normalize(), e2.clone().normalize(), n));
+      this.surface = new THREE.Mesh(geo, this.chrome); this.objGroup.add(this.surface);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w * 1.02, h * 1.02, 0.03), new THREE.MeshBasicMaterial({ color: 0x3a3c40 }));
+      back.applyMatrix4(new THREE.Matrix4().makeBasis(e1.clone().normalize(), e2.clone().normalize(), n));
+      back.position.addScaledVector(n, -0.02); this.objGroup.add(back);
+      maxR = 0.1;
+    } else {
+      // body of revolution from the measured silhouette (radius, height), closed at both ends
+      const prof = data.profile.map(([r, z]) => new THREE.Vector2(Math.max(r * s, 1e-3), z * s));
+      prof.unshift(new THREE.Vector2(1e-3, prof[0].y)); prof.push(new THREE.Vector2(1e-3, prof[prof.length - 1].y));
+      this.surface = new THREE.Mesh(new THREE.LatheGeometry(prof, 160), this.chrome); this.objGroup.add(this.surface);
+      maxR = Math.max(...prof.map(p => p.x));
+      this.objGroup.add(this.contactShadow(maxR, Math.min(...prof.map(p => p.y))));
+    }
+
+    // training trajectory: the two passes in capture order, frustums, and an arrow from the centre view
+    this.camGroup = new THREE.Group(); this.scene.add(this.camGroup);
+    const pass = (a, b) => new THREE.Line(new THREE.BufferGeometry().setFromPoints(this.trainCams.slice(a, b)), new THREE.LineBasicMaterial({ color: CAM }));
+    const half = this.trainCams.length / 2;
+    this.scene.add(pass(0, half), pass(half, this.trainCams.length));
+    const dir = this.centreCam.clone().negate().normalize();
+    const len = this.centreCam.length() - maxR - 0.45;
+    if (len > 0.3) this.scene.add(new THREE.ArrowHelper(dir, this.centreCam.clone().add(dir.clone().multiplyScalar(0.25)), len, CAM, 0.22, 0.11));
+
+    this.ray = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 2.0, HILITE, 0.14, 0.07);
+    this.ray.visible = false; this.scene.add(this.ray);
+  }
+
+  // ---------- environment view ----------
+  resetLook() {   // a scene's view: [lat, lon] in degrees, as in the readout; otherwise face the cameras
+    const v = this.cfg.view;
+    if (v) { this.yaw = THREE.MathUtils.degToRad(-v[1]); this.pitch = THREE.MathUtils.degToRad(v[0]); return; }
+    const c = this.centreCam.clone().normalize();
+    this.yaw = Math.atan2(c.z, c.x); this.pitch = 0;
+  }
+
+  buildWorldView() {
+    this.rw = renderer(); this.rw.domElement.classList.add("sphere"); this.worldEl.prepend(this.rw.domElement);
+    this.wScene = new THREE.Scene();
+    this.wCam = new THREE.PerspectiveCamera(100, 1, 0.1, 50);
+    this.resetLook();
+
+    const mask = () => {
+      const t = new THREE.DataTexture(new Uint8Array(GW * GH), GW, GH, THREE.RedFormat);
+      t.magFilter = t.minFilter = THREE.LinearFilter; t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; return t;
+    };
+    this.seenTex = mask();
+    this.worldMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false,
+      uniforms: { envMap: { value: null }, seenMap: { value: this.seenTex }, fog: { value: 1 }, coverage: { value: 0 } },
+      vertexShader: `varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform sampler2D envMap, seenMap; uniform float fog, coverage; varying vec3 vDir;
+        ${EQUIRECT_GLSL}
+        void main() {
+          vec2 uv = dirToUv(normalize(vDir));
+          vec3 c = sampleEquirect(envMap, uv).rgb;
+          vec2 m = vec2(uv.x, 1.0 - uv.y);
+          float s = texture2D(seenMap, m).r;
+          vec3 g = vec3(0.955, 0.958, 0.964);
+          vec2 q = uv * vec2(24.0, 12.0);   // 15° graticule inside unrecoverable space
+          vec2 w = vec2(min(fwidth(q.x), fwidth(fract(q.x + 0.5))), fwidth(q.y));
+          vec2 a = abs(fract(q + 0.5) - 0.5) / max(w, 1e-4);
+          g -= 0.035 * (1.0 - clamp(min(a.x, a.y), 0.0, 1.0));
+          c = mix(c, g, fog * (1.0 - s) * 0.92);   // s: photo coverage, log-scaled to 0..1
+          c = mix(c, mix(g, vec3(0.149, 0.157, 0.173), s), coverage);   // coverage layer: grey ramp
+          gl_FragColor = vec4(c, 1.0);
+          #include <colorspace_fragment>
+        }`,
+    });
+    this.wScene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 128, 64), this.worldMat));
+
+    this.marker = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.2, 48), new THREE.MeshBasicMaterial({ color: HILITE, depthTest: false }));
+    this.marker.visible = false; this.wScene.add(this.marker);
+
+    this.fc = this.root.querySelector(".flatmap"); this.fctx = this.fc.getContext("2d");
+    this.cc = this.root.querySelector(".covmap canvas"); this.cctx = this.cc.getContext("2d");
+    this.fogC = Object.assign(document.createElement("canvas"), { width: GW, height: GH });
+    this.covC = Object.assign(document.createElement("canvas"), { width: GW, height: GH });
+  }
+
+  async loadEnv() {
+    const e = this.cfg.env;
+    const [gt, ours, vis] = await Promise.all([loadImage(e.gt), loadImage(e.ours), loadImage(e.vis)]);
+    this.images = { gt, ours, vis };
+    this.textures = { gt: envTexture(gt), ours: envTexture(ours), vis: envTexture(vis) };
+    this.chrome.uniforms.envMap.value = this.textures.gt;
+    this.setLayer(this.layer);
+  }
+  setLayer(l) {
+    this.layer = l;
+    for (const b of this.root.querySelectorAll(".s-layer button")) b.setAttribute("aria-pressed", b.dataset.layer === l);
+    if (!this.textures) return;
+    this.worldMat.uniforms.envMap.value = this.textures[l] || this.textures.ours;
+    this.worldMat.uniforms.fog.value = l === "ours" ? 1 : 0;
+    this.worldMat.uniforms.coverage.value = l === "cov" ? 1 : 0;
+  }
+  setMode(m) {
+    this.mode = m; this.worldEl.classList.toggle("flat", m === "flat");
+    for (const b of this.root.querySelectorAll(".s-mode button")) b.setAttribute("aria-pressed", b.dataset.mode === m);
+    this.setHover(null); this.resize();
+  }
+
+  drawCameras() {
+    this.camGroup.clear();
+    const mat = new THREE.LineBasicMaterial({ color: CAM, transparent: true, opacity: 0.6 });
+    const userMat = new THREE.LineBasicMaterial({ color: HILITE });
+    this.captures.forEach((c, k) => {
+      if (!c.user && k % 5) return;   // every 5th training camera is drawn; all of them count toward coverage
+      const l = new THREE.LineSegments(frustumGeo, c.user ? userMat : mat);
+      l.position.copy(c.pos); l.lookAt(0, 0, 0); if (c.user) l.scale.setScalar(1.4);
+      this.camGroup.add(l);
+    });
+    const u = this.captures.filter(c => c.user).length;
+    this.userEl.textContent = u ? ` · ${u} added by you` : "";
+  }
+
+  // ---------- coverage ----------
+  contactShadow(r, y) {
+    const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+    const g = cv.getContext("2d"), rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    rg.addColorStop(0, "rgba(0,0,0,0.14)"); rg.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(r * 3, r * 3), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2; shadow.position.y = y - 0.005;
+    return shadow;
+  }
+
+  // surface points and normals for coverage: the vertices, or for an indexed mesh, area-weighted points on its triangles
+  surfacePoints() {
+    if (this.local) return this.local;
+    const g = this.surface.geometry, P = g.attributes.position, N = g.attributes.normal, I = g.index;
+    if (!I) return (this.local = { P: P.array, N: N.array });
+    const nt = I.count / 3, cum = new Float64Array(nt), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    let total = 0;
+    for (let t = 0; t < nt; t++) {
+      a.fromBufferAttribute(P, I.getX(3 * t)); b.fromBufferAttribute(P, I.getX(3 * t + 1)); c.fromBufferAttribute(P, I.getX(3 * t + 2));
+      total += b.sub(a).cross(c.sub(a)).length(); cum[t] = total;
+    }
+    const n = 20000, pts = new Float32Array(n * 3), nrm = new Float32Array(n * 3);
+    let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;   // fixed, so coverage is repeatable
+    for (let k = 0; k < n; k++) {
+      let lo = 0, hi = nt - 1; const x = rnd() * total;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < x) lo = m + 1; else hi = m; }
+      let u = rnd(), v = rnd(); if (u + v > 1) { u = 1 - u; v = 1 - v; }
+      const w = [1 - u - v, u, v];
+      for (let j = 0; j < 3; j++) {
+        const i = I.getX(3 * lo + j);
+        for (let d = 0; d < 3; d++) { pts[k * 3 + d] += w[j] * P.getComponent(i, d); nrm[k * 3 + d] += w[j] * N.getComponent(i, d); }
+      }
+    }
+    return (this.local = { P: pts, N: nrm });
+  }
+  sampleSurface() {
+    this.objGroup.updateMatrixWorld(true);
+    const { P, N } = this.surfacePoints(), count = P.length / 3;
+    const M = this.surface.matrixWorld, NM = new THREE.Matrix3().getNormalMatrix(M), v = new THREE.Vector3();
+    const pts = new Float32Array(count * 3), nrm = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      v.fromArray(P, i * 3).applyMatrix4(M); pts[i*3] = v.x; pts[i*3+1] = v.y; pts[i*3+2] = v.z;
+      v.fromArray(N, i * 3).applyMatrix3(NM).normalize(); nrm[i*3] = v.x; nrm[i*3+1] = v.y; nrm[i*3+2] = v.z;
+    }
+    this.samples = { pts, nrm, n: count };
+  }
+  reflectFrom(grid, c, stride) {
+    const { pts, nrm, n } = this.samples;
+    for (let i = 0; i < n; i += stride) {
+      const k = i * 3;
+      let dx = pts[k] - c.x, dy = pts[k+1] - c.y, dz = pts[k+2] - c.z;
+      const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
+      const nx = nrm[k], ny = nrm[k+1], nz = nrm[k+2], dn = dx*nx + dy*ny + dz*nz;
+      if (dn >= -0.02) continue;
+      const [u, v] = dirToUv(dx - 2*dn*nx, dy - 2*dn*ny, dz - 2*dn*nz);
+      const ci = Math.min(GW - 1, Math.floor(u * GW)), cj = Math.min(GH - 1, Math.floor((1 - v) * GH));
+      for (let dj = -1; dj <= 1; dj++) {
+        const j = cj + dj; if (j < 0 || j >= GH) continue;
+        const wr = Math.min(GW / 2, Math.ceil(1 / Math.max(rowW[j], 0.05)));
+        for (let di = -wr; di <= wr; di++) grid[j * GW + ((ci + di + GW) % GW)] = 1;
+      }
+    }
+  }
+  computeSeen(fast) {
+    this.sampleSurface(); this.count.fill(0);
+    const stride = Math.max(1, Math.round(this.captures.length / 25)) * (fast ? 3 : 1);
+    for (const c of this.captures) {   // number of photos that saw each direction
+      this.tmp.fill(0); this.reflectFrom(this.tmp, c.pos, stride);
+      for (let i = 0; i < GW * GH; i++) this.count[i] += this.tmp[i];
+    }
+    let s = 0;
+    for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) if (this.count[j * GW + i]) s += rowW[j];
+    this.pctEl.textContent = Math.round(100 * s / totalW) + "%";
+    // 0 photos -> 0, 1 -> 0.23, 5 -> 0.59, 20+ -> 1
+    const level = n => Math.min(1, Math.log1p(n) / Math.log1p(20));
+    const d = this.seenTex.image.data;
+    const f = this.fogC.getContext("2d"), fi = f.createImageData(GW, GH);
+    const k = this.covC.getContext("2d"), ki = k.createImageData(GW, GH);
+    for (let i = 0; i < GW * GH; i++) {
+      const L = level(this.count[i]);
+      d[i] = Math.round(L * 255);
+      fi.data.set([244, 245, 246, Math.round(235 * (1 - L))], i * 4);
+      const g = Math.round(244 - (244 - 38) * L);   // white = unseen, near black = seen by many photos
+      ki.data.set([g, g + 1, g + 2, 255], i * 4);
+    }
+    this.seenTex.needsUpdate = true;
+    f.putImageData(fi, 0, 0); k.putImageData(ki, 0, 0);
+  }
+
+  drawCoverage() {
+    const c = this.cctx, W = this.cc.width, H = this.cc.height; if (!W) return;
+    c.clearRect(0, 0, W, H); c.drawImage(this.covC, 0, 0, W, H);
+    if (this.hover) {
+      c.strokeStyle = "#111214"; c.lineWidth = Math.max(1.5, W / 400);
+      c.beginPath(); c.arc(this.hover.u * W, (1 - this.hover.v) * H, W / 60, 0, 7); c.stroke();
+    }
+  }
+
+  // ---------- flat map ----------
+  flatRect() { const W = this.fc.width, H = this.fc.height, h = Math.min(H, W / 2), w = h * 2; return { x: (W - w) / 2, y: (H - h) / 2, w, h }; }
+  drawFlat() {
+    const c = this.fctx, W = this.fc.width, H = this.fc.height; if (!W || !this.images) return;
+    const r = this.flatRect(), k = W / this.fc.clientWidth;
+    c.clearRect(0, 0, W, H);
+    if (this.layer === "cov") c.drawImage(this.covC, r.x, r.y, r.w, r.h);
+    else {
+      const img = this.images[this.layer] || this.images.gt;
+      if (img) c.drawImage(img, r.x, r.y, r.w, r.h);
+      if (this.layer !== "vis") { c.save(); c.filter = `blur(${Math.max(1, W / 400)}px)`; c.drawImage(this.fogC, r.x, r.y, r.w, r.h); c.restore(); }
+    }
+    if (this.hover) {
+      c.strokeStyle = "#111214"; c.lineWidth = Math.max(1.5, W / 500);
+      c.beginPath(); c.arc(r.x + this.hover.u * r.w, r.y + (1 - this.hover.v) * r.h, W / 80, 0, 7); c.stroke();
+    }
+  }
+
+  // ---------- hover links ----------
+  setHover(u, v, from) {
+    if (u == null) { this.hover = null; this.readout.hidden = true; this.ray.visible = this.marker.visible = false; return; }
+    this.hover = { u, v };
+    const ci = Math.min(GW - 1, Math.floor(u * GW)), cj = Math.min(GH - 1, Math.floor((1 - v) * GH));
+    const lat = Math.round((v - 0.5) * 180), lon = Math.round(u * 360 - 180);
+    this.readout.hidden = false;
+    const n = this.count[cj * GW + ci];
+    this.readout.textContent = `${lat}°, ${lon}° · ${n ? `Seen in ${n} photo${n === 1 ? "" : "s"}` : "Never seen"}`;
+    const d = uvToDir(u, v);
+    this.ray.visible = from === "world";
+    if (this.ray.visible) { this.ray.position.copy(this.objGroup.position); this.ray.setDirection(d); }
+    this.marker.visible = from === "object";
+    if (this.marker.visible) { this.marker.position.copy(d.multiplyScalar(9)); this.marker.lookAt(0, 0, 0); this.marker.scale.setScalar(this.wCam.fov / 85); }
+  }
+
+  bindControls() {
+    const q = s => this.root.querySelector(s);
+    this.root.querySelectorAll(".s-layer button").forEach(b => b.onclick = () => this.setLayer(b.dataset.layer));
+    this.root.querySelectorAll(".s-mode button").forEach(b => b.onclick = () => this.setMode(b.dataset.mode));
+    q(".s-clear").onclick = () => { this.captures = []; this.drawCameras(); this.dirtySeen = true; };
+    q(".s-reset").onclick = () => {
+      this.captures = this.trainCams.map(p => ({ pos: p.clone(), user: false })); this.drawCameras();
+      this.objGroup.position.set(0, 0, 0); this.objGroup.rotation.set(0, 0, 0);
+      this.moved = false; this.fitHome(); this.controls.update();
+      this.resetLook(); this.wCam.fov = 100; this.wCam.updateProjectionMatrix(); this.dirtySeen = true;
+    };
+
+    // environment: drag to look, wheel to zoom, hover to point
+    this.cc.addEventListener("pointermove", e => {
+      const b = this.cc.getBoundingClientRect();
+      this.setHover((e.clientX - b.left) / b.width, 1 - (e.clientY - b.top) / b.height, "world");
+    });
+    this.cc.addEventListener("pointerleave", () => this.setHover(null));
+    const W = this.worldEl, sRay = new THREE.Raycaster();
+    W.addEventListener("pointerdown", e => {
+      if (this.mode !== "sphere") return;
+      this.look = { x: e.clientX, y: e.clientY, yaw: this.yaw, pitch: this.pitch };
+      W.setPointerCapture(e.pointerId); W.classList.add("dragging");
+    });
+    W.addEventListener("pointermove", e => {
+      const b = W.getBoundingClientRect(), px = e.clientX - b.left, py = e.clientY - b.top;
+      if (this.mode === "flat") {
+        const r = this.flatRect(), k = this.fc.width / b.width;
+        const u = (px * k - r.x) / r.w, v = 1 - (py * k - r.y) / r.h;
+        if (u < 0 || u > 1 || v < 0 || v > 1) this.setHover(null); else this.setHover(u, v, "world");
+        return;
+      }
+      if (this.look) {
+        const k = (this.wCam.fov / 85) * 0.0055;
+        this.yaw = this.look.yaw - (e.clientX - this.look.x) * k;
+        this.pitch = THREE.MathUtils.clamp(this.look.pitch + (e.clientY - this.look.y) * k, -1.5, 1.5);
+      }
+      sRay.setFromCamera(new THREE.Vector2(px / b.width * 2 - 1, -py / b.height * 2 + 1), this.wCam);
+      const d = sRay.ray.direction;
+      this.setHover(...dirToUv(d.x, d.y, d.z), "world");
+    });
+    const endLook = () => { this.look = null; W.classList.remove("dragging"); };
+    W.addEventListener("pointerup", endLook); W.addEventListener("pointercancel", endLook);
+    W.addEventListener("pointerleave", () => { if (!this.look) this.setHover(null); });
+    W.addEventListener("wheel", e => {
+      if (this.mode !== "sphere") return;
+      e.preventDefault();
+      this.wCam.fov = THREE.MathUtils.clamp(this.wCam.fov * Math.exp(e.deltaY * 0.001), 30, 115); this.wCam.updateProjectionMatrix();
+    }, { passive: false });
+
+    // object: drag to move, shift-drag to rotate, hover to point into the environment
+    const el = this.r3.domElement, rc = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const tri = new THREE.Triangle(), na = new THREE.Vector3(), nb = new THREE.Vector3(), nc = new THREE.Vector3();
+    const pick = e => { const r = el.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); rc.setFromCamera(ndc, this.camera); };
+    el.addEventListener("pointerdown", e => {
+      pick(e);
+      const hit = rc.intersectObject(this.surface, false)[0];
+      if (!hit) return;
+      this.controls.enabled = false; this.viewEl.classList.add("dragging"); el.setPointerCapture(e.pointerId);
+      if (e.shiftKey) this.drag = { rot: true, x: e.clientX, y: e.clientY, ry: this.objGroup.rotation.y, rx: this.objGroup.rotation.x };
+      else {
+        plane.constant = -hit.point.y;
+        const p = new THREE.Vector3(); rc.ray.intersectPlane(plane, p);
+        this.drag = { rot: false, off: this.objGroup.position.clone().sub(p) };
+      }
+    });
+    el.addEventListener("pointermove", e => {
+      pick(e);
+      if (this.drag) {
+        if (this.drag.rot) {
+          this.objGroup.rotation.y = this.drag.ry + (e.clientX - this.drag.x) * 0.01;
+          this.objGroup.rotation.x = THREE.MathUtils.clamp(this.drag.rx + (e.clientY - this.drag.y) * 0.01, -1.2, 1.2);
+        } else {
+          const p = new THREE.Vector3();
+          if (rc.ray.intersectPlane(plane, p)) { p.add(this.drag.off); p.y = 0; if (p.length() > 1.6) p.setLength(1.6); this.objGroup.position.copy(p); }
+        }
+        this.dirtySeen = true; return;
+      }
+      const hit = rc.intersectObject(this.surface, false)[0];
+      if (hit) {
+        const N = this.surface.geometry.attributes.normal, P = this.surface.geometry.attributes.position, f = hit.face;
+        tri.setFromAttributeAndIndices(P, f.a, f.b, f.c);
+        const n = tri.getInterpolation(this.surface.worldToLocal(hit.point.clone()), na.fromBufferAttribute(N, f.a), nb.fromBufferAttribute(N, f.b), nc.fromBufferAttribute(N, f.c), new THREE.Vector3())
+          .transformDirection(this.surface.matrixWorld);
+        const d = hit.point.clone().sub(this.camera.position).normalize();
+        if (d.dot(n) > 0) n.negate();
+        const r = d.sub(n.multiplyScalar(2 * d.dot(n)));
+        this.setHover(...dirToUv(r.x, r.y, r.z), "object"); return;
+      }
+      if (this.hover && !this.ray.visible) this.setHover(null);
+    });
+    const endDrag = () => { if (!this.drag) return; this.drag = null; this.dirtySeen = true; this.controls.enabled = true; this.viewEl.classList.remove("dragging"); };
+    el.addEventListener("pointerup", endDrag); el.addEventListener("pointercancel", endDrag);
+    el.addEventListener("pointerleave", () => { if (!this.drag && this.hover && !this.ray.visible) this.setHover(null); });
+  }
+
+  fitHome() {   // the object fills 90% of the view's height, or of its width if that is the tighter fit
+    const b = new THREE.Box3().setFromObject(this.surface), s = b.getSize(new THREE.Vector3());
+    const t = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)), wide = Math.max(s.x, s.z);
+    const d = Math.max(s.y / (0.9 * 2 * t), wide / (0.9 * 2 * t * this.camera.aspect)) + wide / 2;
+    b.getCenter(this.homeTarget); this.home = this.homeTarget.clone().addScaledVector(this.homeDir, d);
+    if (!this.moved) { this.camera.position.copy(this.home); this.controls.target.copy(this.homeTarget); }
+  }
+
+  resize() {
+    const a = this.viewEl.getBoundingClientRect();
+    if (a.width) { this.r3.setSize(a.width, a.height, false); this.camera.aspect = a.width / a.height; this.camera.updateProjectionMatrix(); this.fitHome(); }
+    const b = this.worldEl.getBoundingClientRect();
+    if (b.width) {
+      this.rw.setSize(b.width, b.height, false); this.wCam.aspect = b.width / b.height; this.wCam.updateProjectionMatrix();
+      const d = Math.min(devicePixelRatio, 2); this.fc.width = Math.round(b.width * d); this.fc.height = Math.round(b.height * d);
+    }
+    const cr = this.cc.getBoundingClientRect(), d = Math.min(devicePixelRatio, 2);
+    if (cr.width) { this.cc.width = Math.round(cr.width * d); this.cc.height = Math.round(cr.height * d); }
+  }
+
+  frame(t) {
+    this.controls.update();
+    if (!this.visible || !this.textures) return;
+    if (this.dirtySeen) { this.computeSeen(!!this.drag); this.dirtySeen = false; }
+    this.r3.render(this.scene, this.camera);
+    this.drawCoverage();
+    const p = this.centreCam.clone().project(this.camera);
+    this.tag.hidden = p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1;
+    this.tag.style.left = (p.x + 1) / 2 * 100 + "%"; this.tag.style.top = (1 - p.y) / 2 * 100 + "%";
+    if (this.mode === "sphere") {
+      const cp = Math.cos(this.pitch);
+      this.wCam.lookAt(cp * Math.cos(this.yaw), Math.sin(this.pitch), cp * Math.sin(this.yaw));
+      this.rw.render(this.wScene, this.wCam);
+    } else this.drawFlat();
+  }
+}
+
+const tpl = document.getElementById("sceneTpl"), host = document.getElementById("scenes");
+const demos = [];
+for (const cfg of SCENES) {
+  const root = tpl.content.firstElementChild.cloneNode(true);
+  host.appendChild(root);
+  fetch(cfg.data).then(r => r.json()).then(data => {
+    const d = new SceneDemo(cfg, data, root); demos.push(d); d.loadEnv();
+  });
+}
+function tick(t) { for (const d of demos) d.frame(t); requestAnimationFrame(tick); }
+requestAnimationFrame(tick);
+</script>
 </body>
 </html>
